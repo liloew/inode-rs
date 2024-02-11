@@ -1,0 +1,17 @@
+[package]
+name = "inode-rs"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "inode"
+path = "cli/main.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = { version = "1.0.79", features = ["backtrace"] }
+bytes = { version = "1.5.0", features = ["serde"] }
+clap = { version = "4.5.0", features = ["debug", "derive", "env"] }
+pnet = { version = "0.34.0", features = ["serde"] }
+tokio = { version = "1.36.0", features = ["full"] }
