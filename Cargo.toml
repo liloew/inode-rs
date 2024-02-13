@@ -1,17 +1,27 @@
-[package]
+[workspace.package]
 name = "inode-rs"
 version = "0.1.0"
 edition = "2021"
 
-[[bin]]
-name = "inode"
-path = "cli/main.rs"
+[workspace]
+members = [
+    "cli",
+    "packet"
+]
+resolver = "2"
+
+# [[bin]]
+# name = "inode"
+# path = "cli/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
+[workspace.dependencies]
 anyhow = { version = "1.0.79", features = ["backtrace"] }
 bytes = { version = "1.5.0", features = ["serde"] }
 clap = { version = "4.5.0", features = ["debug", "derive", "env"] }
 pnet = { version = "0.34.0", features = ["serde"] }
 tokio = { version = "1.36.0", features = ["full"] }
+serde = { version = "1.0.196", features = ["serde_derive", "derive"] }
+serde_json = "1.0.113"
+hex = { version = "0.4.3", features = ["serde"] }
