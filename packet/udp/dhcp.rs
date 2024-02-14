@@ -1,9 +1,10 @@
 use std::convert::TryInto;
 
-use bytes::{BufMut, BytesMut};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[repr(u8)]
 pub enum DHCPOPTION {
     PadOption = 0x00,
     EndOption = 0xff,
@@ -82,6 +83,91 @@ pub enum DHCPOPTION {
     StreetTalkServerOption = 0x4B,
     StreetTalkDirectoryAssistanceServerOption = 0x4C,
 }
+
+impl Into<DHCPOPTION> for u8 {
+    fn into(self) -> DHCPOPTION {
+        match self {
+            0x00 => DHCPOPTION::PadOption,
+            0xff => DHCPOPTION::EndOption,
+            0x01 => DHCPOPTION::SubnetMask,
+            0x02 => DHCPOPTION::TimeOffset,
+            0x03 => DHCPOPTION::RouterOption,
+            0x04 => DHCPOPTION::TimeServerOption,
+            0x05 => DHCPOPTION::NameServerOption,
+            0x06 => DHCPOPTION::DomainNameServerOption,
+            0x07 => DHCPOPTION::LogServerOption,
+            0x08 => DHCPOPTION::CookieServerOption,
+            0x09 => DHCPOPTION::LPRServerOption,
+            0x0A => DHCPOPTION::ImpressServerOption,
+            0x0B => DHCPOPTION::ResourceLocationServerOption,
+            0x0C => DHCPOPTION::HostNameOption,
+            0x0D => DHCPOPTION::BootFileSizeOption,
+            0x0E => DHCPOPTION::MeritDumpFile,
+            0x0F => DHCPOPTION::DomainName,
+            0x10 => DHCPOPTION::SwapServer,
+            0x11 => DHCPOPTION::RootPath,
+            0x12 => DHCPOPTION::ExtensionsPath,
+            0x13 => DHCPOPTION::IPForwardingOption,
+            0x14 => DHCPOPTION::NonLocalSourceRoutingOption,
+            0x15 => DHCPOPTION::PolicyFilterOption,
+            0x16 => DHCPOPTION::MaximumDatagramReassemblySize,
+            0x17 => DHCPOPTION::DefaultIPTimeTolive,
+            0x18 => DHCPOPTION::PathMTUAgingTimeoutOption,
+            0x19 => DHCPOPTION::PathMTUPlateauTableOption,
+            0x1A => DHCPOPTION::InterfaceMTUOption,
+            0x1B => DHCPOPTION::AllSubnetsAreLocalOption,
+            0x1C => DHCPOPTION::BroadcastAddressOption,
+            0x1D => DHCPOPTION::PerformMaskDiscoveryOption,
+            0x1E => DHCPOPTION::MaskSupplierOption,
+            0x1F => DHCPOPTION::PerformRouterDiscoveryOption,
+            0x20 => DHCPOPTION::RouterSolicitationAddressOption,
+            0x21 => DHCPOPTION::StaticRouteOption,
+            0x22 => DHCPOPTION::TrailerEncapsulationOption,
+            0x23 => DHCPOPTION::ARPCacheTimeoutOption,
+            0x24 => DHCPOPTION::EthernetEncapsulationOption,
+            0x25 => DHCPOPTION::TCPDefaultTTLOption,
+            0x26 => DHCPOPTION::TCPKeepaliveIntervalOption,
+            0x27 => DHCPOPTION::TCPKeepaliveGarbageOption,
+            0x28 => DHCPOPTION::NetworkInformationServiceDomainOption,
+            0x29 => DHCPOPTION::NetworkInformationServersOption,
+            0x2A => DHCPOPTION::NetworkTimeProtocolServersOption,
+            0x2B => DHCPOPTION::VendorSpecificInformation,
+            0x2C => DHCPOPTION::NetBIOSOverTCPIPNameServerOption,
+            0x2D => DHCPOPTION::NetBIOSOverTCPIPDatagramDistributionServerOption,
+            0x2E => DHCPOPTION::NetBIOSOverTCPIPNodeTypeOption,
+            0x2F => DHCPOPTION::NetBIOSOverTCPIPScopeOption,
+            0x30 => DHCPOPTION::XWindowSystemFontServerOption,
+            0x31 => DHCPOPTION::XWindowSystemDisplayManagerOption,
+            0x32 => DHCPOPTION::RequestedIPAddress,
+            0x33 => DHCPOPTION::IPAddressLeaseTime,
+            0x34 => DHCPOPTION::OptionOverload,
+            0x35 => DHCPOPTION::DHCPMessageType,
+            0x36 => DHCPOPTION::ServerIdentifier,
+            0x37 => DHCPOPTION::ParameterRequestList,
+            0x38 => DHCPOPTION::Message,
+            0x39 => DHCPOPTION::MaximumDHCPMessageSize,
+            0x3A => DHCPOPTION::RenewalTimeValue,
+            0x3B => DHCPOPTION::RebindingTimeValue,
+            0x3C => DHCPOPTION::VendorClassIdentifier,
+            0x3D => DHCPOPTION::ClientIdentifier,
+            0x40 => DHCPOPTION::NetworkInformationServicePlusDomainOption,
+            0x41 => DHCPOPTION::NetworkInformationServicePlusServersOption,
+            0x42 => DHCPOPTION::TFTPServerName,
+            0x43 => DHCPOPTION::BootfileName,
+            0x44 => DHCPOPTION::MobileIPHomeAgentOption,
+            0x45 => DHCPOPTION::SMTPServerOption,
+            0x46 => DHCPOPTION::POP3ServerOption,
+            0x47 => DHCPOPTION::NNTPServerOption,
+            0x48 => DHCPOPTION::DefaultWWWServerOption,
+            0x49 => DHCPOPTION::DefaultFingerServerOption,
+            0x4A => DHCPOPTION::DefaultIRCServerOption,
+            0x4B => DHCPOPTION::StreetTalkServerOption,
+            0x4C => DHCPOPTION::StreetTalkDirectoryAssistanceServerOption,
+            _ => DHCPOPTION::EndOption,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DHCPOPTIONS {
     pub tp: DHCPOPTION,
@@ -90,6 +176,7 @@ pub struct DHCPOPTIONS {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[repr(u8)]
 pub enum DHCPMessageType {
     DHCPDISCOVER = 0x01,
     DHCPOFFER = 0x02,
@@ -102,22 +189,59 @@ pub enum DHCPMessageType {
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[repr(u8)]
 pub enum DHCPOP {
     #[default]
     BOOTREQUEST = 0x01,
     BOOTREPLY = 0x02,
 }
 
+impl Into<DHCPOP> for u8 {
+    fn into(self) -> DHCPOP {
+        match self {
+            0x01 => DHCPOP::BOOTREQUEST,
+            0x02 => DHCPOP::BOOTREPLY,
+            _ => DHCPOP::BOOTREQUEST,
+        }
+    }
+}
+
+impl From<DHCPOP> for u8 {
+    fn from(value: DHCPOP) -> Self {
+        value as u8
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[repr(u8)]
 pub enum DHCPHType {
     #[default]
     ETHERNET = 0x01,
 }
 
+impl Into<DHCPHType> for u8 {
+    fn into(self) -> DHCPHType {
+        match self {
+            0x01 => DHCPHType::ETHERNET,
+            _ => DHCPHType::ETHERNET,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[repr(u8)]
 pub enum DHCPHLen {
     #[default]
     ETHERNET = 0x06,
+}
+
+impl Into<DHCPHLen> for u8 {
+    fn into(self) -> DHCPHLen {
+        match self {
+            0x01 => DHCPHLen::ETHERNET,
+            _ => DHCPHLen::ETHERNET,
+        }
+    }
 }
 
 pub trait DHCPBytes {
@@ -184,22 +308,121 @@ impl DHCPDiscover {
 
     pub fn insert_options(&mut self, options: Vec<DHCPOPTIONS>) {
         for ele in options.iter() {
-            println!("{:?}", *ele);
             self.options.push(ele.tp as u8);
             self.options.push(ele.len);
             self.options.extend(ele.va.clone());
         }
         self.options.push(0xff);
-        if self.options.len() < 312 {
-            self.options.resize(312, 0);
-        } else if self.options.len() > 576 {
-            panic!("DHCP Message must less then 512.")
-        }
+        // if self.options.len() < 312 {
+        //     self.options.resize(312, 0);
+        // } else if self.options.len() > 576 {
+        //     panic!("DHCP Message must less then 512.")
+        // }
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct DHCPOffer {}
+#[derive(Debug, Clone)]
+pub struct DHCPOffer {
+    pub op: DHCPOP,
+    pub htype: DHCPHType,
+    pub hlen: DHCPHLen,
+    pub hops: u8,
+    pub xid: u32,
+    pub secs: u16,
+    pub flags: u16,
+    pub ciaddr: [u8; 4],
+    pub yiaddr: [u8; 4],
+    pub siaddr: [u8; 4],
+    pub giaddr: [u8; 4],
+    pub chaddr: [u8; 16],
+    pub sname: [u8; 64],
+    pub file: [u8; 128],
+    pub options: Vec<DHCPOPTIONS>,
+}
+
+impl DHCPOffer {
+    pub fn default() -> Self {
+        todo!()
+    }
+
+    pub fn from_bytes<T: Buf>(buf: &mut T) -> Self {
+        let op: DHCPOP = buf.get_u8().into();
+        let htype: DHCPHType = buf.get_u8().into();
+        let hlen = buf.get_u8();
+        let hops = buf.get_u8();
+        let xid = buf.get_u32();
+        let secs = buf.get_u16();
+        let flags = buf.get_u16();
+        let mut ciaddr = [0u8; 4];
+        let mut yiaddr = [0u8; 4];
+        let mut siaddr = [0u8; 4];
+        let mut giaddr = [0u8; 4];
+        for i in 0..4 {
+            ciaddr[i] = buf.get_u8();
+        }
+        for i in 0..4 {
+            yiaddr[i] = buf.get_u8();
+        }
+        for i in 0..4 {
+            siaddr[i] = buf.get_u8();
+        }
+        for i in 0..4 {
+            giaddr[i] = buf.get_u8();
+        }
+        let mut chaddr = [0u8; 16];
+        for i in 0..16 {
+            chaddr[i] = buf.get_u8();
+        }
+        let mut sname = [0u8; 64];
+        for i in 0..64 {
+            sname[i] = buf.get_u8();
+        }
+        let mut file = [0u8; 128];
+        for i in 0..128 {
+            file[i] = buf.get_u8();
+        }
+        // magic cookie dhcp read as u32 - [63, 82, 53, 63]
+        let magic_cookie_dhcp = buf.get_u32();
+        if magic_cookie_dhcp != 1669485411u32 {
+            println!("Error: {}", magic_cookie_dhcp);
+            // panic
+        }
+        let mut options: Vec<DHCPOPTIONS> = Vec::new();
+        loop {
+            let tp = buf.get_u8();
+            if tp == DHCPOPTION::EndOption as u8 {
+                break;
+            }
+            let len = buf.get_u8();
+            let mut va = Vec::with_capacity(len as usize);
+            for i in 0..len as usize {
+                va.push(buf.get_u8());
+            }
+            options.push(DHCPOPTIONS {
+                tp: tp.into(),
+                len: len,
+                va: va,
+            })
+        }
+        DHCPOffer {
+            op: op,
+            htype: htype,
+            hlen: hlen.into(),
+            hops: hops,
+            xid: xid,
+            secs: secs,
+            flags: flags,
+            ciaddr: ciaddr,
+            yiaddr: yiaddr,
+            siaddr: siaddr,
+            giaddr: giaddr,
+            chaddr: chaddr,
+            sname: sname,
+            file: file,
+            options: options,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct DHCPRequest {}
