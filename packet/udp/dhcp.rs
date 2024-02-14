@@ -1,18 +1,104 @@
 use std::convert::TryInto;
 
-use serde::{Deserialize, Serialize};
 use bytes::{BufMut, BytesMut};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum MessageType {
-    DHCPDiscover,
-    DHCPOffer,
-    DHCPRequest,
-    DHCPDecline,
-    DHCPAck,
-    DHCPNak,
-    DHCPRelease,
-    DHCPInform,
+pub enum DHCPOPTION {
+    PadOption = 0x00,
+    EndOption = 0xff,
+    SubnetMask = 0x01,
+    TimeOffset = 0x02,
+    RouterOption = 0x03,
+    TimeServerOption = 0x04,
+    NameServerOption = 0x05,
+    DomainNameServerOption = 0x06,
+    LogServerOption = 0x07,
+    CookieServerOption = 0x08,
+    LPRServerOption = 0x09,
+    ImpressServerOption = 0x0A,
+    ResourceLocationServerOption = 0x0B,
+    HostNameOption = 0x0C,
+    BootFileSizeOption = 0x0D,
+    MeritDumpFile = 0x0E,
+    DomainName = 0x0F,
+    SwapServer = 0x10,
+    RootPath = 0x11,
+    ExtensionsPath = 0x12,
+    IPForwardingOption = 0x13,
+    NonLocalSourceRoutingOption = 0x14,
+    PolicyFilterOption = 0x15,
+    MaximumDatagramReassemblySize = 0x16,
+    DefaultIPTimeTolive = 0x17,
+    PathMTUAgingTimeoutOption = 0x18,
+    PathMTUPlateauTableOption = 0x19,
+    InterfaceMTUOption = 0x1A,
+    AllSubnetsAreLocalOption = 0x1B,
+    BroadcastAddressOption = 0x1C,
+    PerformMaskDiscoveryOption = 0x1D,
+    MaskSupplierOption = 0x1E,
+    PerformRouterDiscoveryOption = 0x1F,
+    RouterSolicitationAddressOption = 0x20,
+    StaticRouteOption = 0x21,
+    TrailerEncapsulationOption = 0x22,
+    ARPCacheTimeoutOption = 0x23,
+    EthernetEncapsulationOption = 0x24,
+    TCPDefaultTTLOption = 0x25,
+    TCPKeepaliveIntervalOption = 0x26,
+    TCPKeepaliveGarbageOption = 0x27,
+    NetworkInformationServiceDomainOption = 0x28,
+    NetworkInformationServersOption = 0x29,
+    NetworkTimeProtocolServersOption = 0x2A,
+    VendorSpecificInformation = 0x2B,
+    NetBIOSOverTCPIPNameServerOption = 0x2C,
+    NetBIOSOverTCPIPDatagramDistributionServerOption = 0x2D,
+    NetBIOSOverTCPIPNodeTypeOption = 0x2E,
+    NetBIOSOverTCPIPScopeOption = 0x2F,
+    XWindowSystemFontServerOption = 0x30,
+    XWindowSystemDisplayManagerOption = 0x31,
+    RequestedIPAddress = 0x32,
+    IPAddressLeaseTime = 0x33,
+    OptionOverload = 0x34,
+    DHCPMessageType = 0x35,
+    ServerIdentifier = 0x36,
+    ParameterRequestList = 0x37,
+    Message = 0x38,
+    MaximumDHCPMessageSize = 0x39,
+    RenewalTimeValue = 0x3A,
+    RebindingTimeValue = 0x3B,
+    VendorClassIdentifier = 0x3C,
+    ClientIdentifier = 0x3D,
+    NetworkInformationServicePlusDomainOption = 0x40,
+    NetworkInformationServicePlusServersOption = 0x41,
+    TFTPServerName = 0x42,
+    BootfileName = 0x43,
+    MobileIPHomeAgentOption = 0x44,
+    SMTPServerOption = 0x45,
+    POP3ServerOption = 0x46,
+    NNTPServerOption = 0x47,
+    DefaultWWWServerOption = 0x48,
+    DefaultFingerServerOption = 0x49,
+    DefaultIRCServerOption = 0x4A,
+    StreetTalkServerOption = 0x4B,
+    StreetTalkDirectoryAssistanceServerOption = 0x4C,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DHCPOPTIONS {
+    pub tp: DHCPOPTION,
+    pub len: u8,
+    pub va: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum DHCPMessageType {
+    DHCPDISCOVER = 0x01,
+    DHCPOFFER = 0x02,
+    DHCPREQUEST = 0x03,
+    DHCPDECLINE = 0x04,
+    DHCPACK = 0x05,
+    DHCPNAK = 0x06,
+    DHCPRELEASE = 0x07,
+    DHCPINFORM = 0x08,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
@@ -38,13 +124,12 @@ pub trait DHCPBytes {
     fn to_bytes(&self) -> BytesMut;
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct DHCPDiscover {
     pub op: DHCPOP,
     pub htype: DHCPHType,
     pub hlen: DHCPHLen,
     pub hops: u8,
-    // TODO: 重新定义 xid
     pub xid: u32,
     pub secs: u16,
     pub flags: u16,
@@ -52,15 +137,10 @@ pub struct DHCPDiscover {
     pub yiaddr: u32,
     pub siaddr: u32,
     pub giaddr: u32,
-    // pub mac: String,
     pub chaddr: [u8; 16],
-    // mac -> hex format!("{:0<8}", "110").parse::<u32>().unwrap()
-    // FIXME: chaddr: 6*8 + 10*8
-    // pub chaddr: u128,
     pub sname: [u8; 64],
     pub file: [u8; 128],
-    pub options: [u8; 312],
-    // TODO: ff ending
+    pub options: Vec<u8>,
 }
 
 impl Default for DHCPDiscover {
@@ -77,45 +157,24 @@ impl Default for DHCPDiscover {
             yiaddr: 0x00000000,
             siaddr: 0x00000000,
             giaddr: 0x00000000,
-            // chaddr: 0x00,
             chaddr: [0x00; 16],
             sname: [0; 64],
             file: [0; 128],
-            options: [0; 312],
+            options: vec![99, 130, 83, 99],
         }
     }
 }
 
 impl DHCPDiscover {
     pub fn with_mac(mac: &str) -> Self {
-        // TODO: Vec padding zero
-        /*
-        let mut mac_addr: Vec<_> = mac.to_owned().split(":")
-                    .flat_map(|pair| hex::decode(pair).expect("MAC address contains unexpected characters"))
-                    .collect();
-        mac_addr.resize(16 - mac_addr.len(), 0);
-        let mut dhcp_discover = DHCPDiscover::default();
-        // dhcp_discover.chaddr = mac_addr.try_into().unwrap_or_else(|v| v);
-        dhcp_discover.chaddr = mac_addr.try_into().unwrap();
-        dhcp_discover
-        */
-        /*
-        let mut mac_addr: [u8; 6];
-        hex::decode_to_slice(mac, &mut mac_addr);
-        */
-
-        /*
-        let mac_addr = if mac.contains("-") {
-            str::split(mac, "-").collect::<String>()
-        } else {
-            str::split(mac, ":").collect::<String>()
-        };
-        println!("mac:{:?} hex: {:?}", &mac_addr, hex::decode(&mac_addr).unwrap());
-        */
         let mut mac_addr: Vec<u8> = if mac.contains("-") {
-            str::split(mac, "-").map(|u| u8::from_str_radix(u, 16).unwrap()).collect()
+            str::split(mac, "-")
+                .map(|u| u8::from_str_radix(u, 16).unwrap())
+                .collect()
         } else {
-            str::split(mac, ":").map(|u| u8::from_str_radix(u, 16).unwrap()).collect()
+            str::split(mac, ":")
+                .map(|u| u8::from_str_radix(u, 16).unwrap())
+                .collect()
         };
         mac_addr.resize(16, 0);
         let mut discover = DHCPDiscover::default();
@@ -123,66 +182,45 @@ impl DHCPDiscover {
         discover
     }
 
-    // FIXME: Vec<Options>
-    pub fn insert_options(&mut self, options: Vec<&str>) -> Self {
-        todo!()
+    pub fn insert_options(&mut self, options: Vec<DHCPOPTIONS>) {
+        for ele in options.iter() {
+            println!("{:?}", *ele);
+            self.options.push(ele.tp as u8);
+            self.options.push(ele.len);
+            self.options.extend(ele.va.clone());
+        }
+        self.options.push(0xff);
+        if self.options.len() < 312 {
+            self.options.resize(312, 0);
+        } else if self.options.len() > 576 {
+            panic!("DHCP Message must less then 512.")
+        }
     }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct DHCPOffer {
-}
+pub struct DHCPOffer {}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct DHCPRequest {
-}
+pub struct DHCPRequest {}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct DHCPDecline {
-}
+pub struct DHCPDecline {}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct DHCPAck {
-}
+pub struct DHCPAck {}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct DHCPNak {
-}
+pub struct DHCPNak {}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct DHCPRelease {
-}
+pub struct DHCPRelease {}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct DHCPInform {
-}
-
+pub struct DHCPInform {}
 
 impl DHCPBytes for DHCPDiscover {
     fn to_bytes(&self) -> BytesMut {
-    /*
-    pub op: DHCPOP,
-    pub htype: DHCPHType,
-    pub hlen: DHCPHLen,
-    pub hops: u8,
-    // TODO: 重新定义 xid
-    pub xid: u32,
-    pub secs: u16,
-    pub flags: u16,
-    pub ciaddr: u32,
-    pub yiaddr: u32,
-    pub siaddr: u32,
-    pub giaddr: u32,
-    // pub mac: String,
-    pub chaddr: [u8; 16],
-    // mac -> hex format!("{:0<8}", "110").parse::<u32>().unwrap()
-    // FIXME: chaddr: 6*8 + 10*8
-    // pub chaddr: u128,
-    pub sname: [u8; 64],
-    pub file: [u8; 128],
-    pub options: [u8; 312],
-    // TODO: ff ending
-    */
         let mut discover_bytes = BytesMut::new();
         discover_bytes.put_u8(self.op as u8);
         discover_bytes.put_u8(self.htype as u8);
@@ -201,46 +239,12 @@ impl DHCPBytes for DHCPDiscover {
         for ele in self.sname.iter() {
             discover_bytes.put_u8(*ele);
         }
+        for ele in self.file.iter() {
+            discover_bytes.put_u8(*ele);
+        }
         for ele in self.options.iter() {
             discover_bytes.put_u8(*ele);
         }
         discover_bytes
-        /*
-        let mac: Vec<_> = self.mac.split(":")
-                    .flat_map(|pair| hex::decode(pair).expect("MAC address contains unexpected characters"))
-                    .collect();
-        let mut dicover_bytes = BytesMut::new();
-        dicover_bytes.extend(&[0x01, 0x01]);
-        dicover_bytes.put_u8(mac.len() as u8);
-        dicover_bytes.put_u8(0x00);
-        // 0x99, 0xc0, 0xcd, 0x35 - xid
-        dicover_bytes.extend(self.xid);
-        dicover_bytes.extend(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-        dicover_bytes.extend(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-        // 0x08, 0x00, 0x27, 0x0f, 0xbe, 0x55
-        dicover_bytes.extend(mac.as_slice());
-        dicover_bytes.extend(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-        dicover_bytes.extend(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-        dicover_bytes.extend(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-        dicover_bytes.extend(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-        dicover_bytes.extend(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-        dicover_bytes.extend(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-        dicover_bytes.extend(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-        dicover_bytes.extend(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-        dicover_bytes.extend(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-        dicover_bytes.extend(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-        dicover_bytes.extend(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-        dicover_bytes.extend(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-        dicover_bytes.extend(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x63, 0x82, 0x53, 0x63]);
-        // dicover_bytes.extend(&[0x35, 0x01, 0x01, 0x3d, 0x07, 0x01, 0x08, 0x00, 0x27, 0x0f, 0xbe, 0x55, 0x32, 0x04, 0xc0, 0xa8]);
-        dicover_bytes.extend(&[0x35, 0x01, 0x01, 0x3d, 0x07, 0x01]);
-        dicover_bytes.put_slice(mac.as_slice());
-        // 0x32, 0x04, 0xc0, 0xa8, 0x38, 0x66
-        dicover_bytes.extend(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);    // requested IP address
-        dicover_bytes.extend(&[0x0c, 0x0f, 0x44, 0x45, 0x53, 0x4b, 0x54, 0x4f, 0x50, 0x2d, 0x52, 0x41, 0x44, 0x44]);
-        dicover_bytes.extend(&[0x4c, 0x4a, 0x45, 0x3c, 0x08, 0x4d, 0x53, 0x46, 0x54, 0x20, 0x35, 0x2e, 0x30, 0x37, 0x0e, 0x01]);
-        dicover_bytes.extend(&[0x03, 0x06, 0x0f, 0x1f, 0x21, 0x2b, 0x2c, 0x2e, 0x2f, 0x77, 0x79, 0xf9, 0xfc, 0xff]);
-        dicover_bytes
-        */
     }
 }
