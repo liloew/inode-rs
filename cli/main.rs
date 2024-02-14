@@ -43,12 +43,12 @@ async fn main() -> Result<()> {
         DHCPOPTIONS {
             tp: DHCPOPTION::ClientIdentifier,
             len: v.len() as u8,
-            va: v,
+            va: v.clone(),
         },
         DHCPOPTIONS {
             tp: DHCPOPTION::ParameterRequestList,
             len: parameter_request_list.len() as u8,
-            va: parameter_request_list,
+            va: parameter_request_list.clone(),
         },
     ]);
     let tmp_bytes = discovery_message.to_bytes();
@@ -65,8 +65,68 @@ async fn main() -> Result<()> {
         println!("{:?} bytes received from {:?}", len, addr);
         let dhcp_offer = DHCPOffer::from_bytes(&mut Bytes::from_iter(buf));
         println!("Prefer IP Address: {:?}", dhcp_offer.yiaddr);
-        println!("DHCPOFFER: {:?}", dhcp_offer);
-        println!("END");
+        let dhcp_server_identifier: Vec<&DHCPOPTIONS> = dhcp_offer
+            .options
+            .iter()
+            .filter(|&v| v.tp == DHCPOPTION::ServerIdentifier)
+            .collect();
+        let mut options = vec![
+            DHCPOPTIONS {
+                tp: DHCPOPTION::DHCPMessageType,
+                len: 1,
+                va: vec![DHCPMessageType::DHCPREQUEST as u8],
+            },
+            DHCPOPTIONS {
+                tp: DHCPOPTION::ClientIdentifier,
+                len: v.len() as u8,
+                va: v.clone(),
+            },
+            DHCPOPTIONS {
+                tp: DHCPOPTION::RequestedIPAddress,
+                len: 4u8,
+                va: dhcp_offer.yiaddr.to_vec(),
+            },
+            // DHCPOPTIONS {
+            //     tp: DHCPOPTION::ServerIdentifier,
+            //     len: 4u8,
+            //     va: dhcp_offer.chaddr.to_vec(),
+            // },
+            DHCPOPTIONS {
+                tp: DHCPOPTION::ParameterRequestList,
+                len: parameter_request_list.len() as u8,
+                va: parameter_request_list.clone(),
+            },
+        ];
+        if dhcp_server_identifier.len() > 0 {
+            let option = dhcp_server_identifier.get(0).unwrap();
+            println!("{:?}", *option);
+            options.insert(
+                0,
+                DHCPOPTIONS {
+                    tp: DHCPOPTION::ServerIdentifier,
+                    len: 4u8,
+                    va: option.va.clone(),
+                },
+            );
+        }
+        let mut v = vec![DHCPHType::ETHERNET as u8];
+        let a: Vec<u8> = str::split(mac, "-")
+            .map(|u| u8::from_str_radix(u, 16).unwrap())
+            .collect();
+        v.extend_from_slice(&a);
+        let mut dhcp_request = DHCPRequest::with_mac_ip_options(mac, options);
+        println!("DHCP Request: {:?}", dhcp_request);
+        let result = socket
+            .send_to(&dhcp_request.to_bytes(), "255.255.255.255:67")
+            .await;
+        println!("DHCP Request: {:?}", result);
+        // TODO: DHCPACK
+        let (len, addr) = socket.recv_from(&mut buf).await?;
+        println!("{:?} bytes received from {:?}", len, addr);
+        let dhcp_ack = DHCPAck::from_bytes(&mut Bytes::from_iter(buf));
+        println!("DHCP ACK: {:?}", dhcp_ack);
+        break;
         println!("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
     }
+    Ok(())
 }

@@ -3,7 +3,7 @@ use std::convert::TryInto;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum DHCPOPTION {
     PadOption = 0x00,
@@ -424,14 +424,177 @@ impl DHCPOffer {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct DHCPRequest {}
+#[derive(Debug, Clone)]
+pub struct DHCPRequest {
+    pub op: DHCPOP,
+    pub htype: DHCPHType,
+    pub hlen: DHCPHLen,
+    pub hops: u8,
+    pub xid: u32,
+    pub secs: u16,
+    pub flags: u16,
+    pub ciaddr: [u8; 4],
+    pub yiaddr: [u8; 4],
+    pub siaddr: [u8; 4],
+    pub giaddr: [u8; 4],
+    pub chaddr: [u8; 16],
+    pub sname: [u8; 64],
+    pub file: [u8; 128],
+    // pub options: Vec<DHCPOPTIONS>,
+    pub options: Vec<u8>,
+}
+
+impl Default for DHCPRequest {
+    fn default() -> Self {
+        DHCPRequest {
+            op: DHCPOP::BOOTREQUEST,
+            htype: DHCPHType::ETHERNET,
+            hlen: DHCPHLen::ETHERNET,
+            hops: 0x00,
+            xid: 0x00000000,
+            secs: 0x0000,
+            flags: 0x0000,
+            ciaddr: [0; 4],
+            yiaddr: [0; 4],
+            siaddr: [0; 4],
+            giaddr: [0; 4],
+            chaddr: [0x00; 16],
+            sname: [0; 64],
+            file: [0; 128],
+            // options: Vec::new(),
+            options: vec![99, 130, 83, 99],
+        }
+    }
+}
+
+impl DHCPRequest {
+    //    fn with_mac_ip_options(mac: &str, ip: [u8; 4], options: Vec<DHCPOPTIONS>) -> Self {
+    pub fn with_mac_ip_options(mac: &str, options: Vec<DHCPOPTIONS>) -> Self {
+        let mut mac_addr: Vec<u8> = if mac.contains("-") {
+            str::split(mac, "-")
+                .map(|u| u8::from_str_radix(u, 16).unwrap())
+                .collect()
+        } else {
+            str::split(mac, ":")
+                .map(|u| u8::from_str_radix(u, 16).unwrap())
+                .collect()
+        };
+        mac_addr.resize(16, 0);
+        let mut dhcp_request = DHCPRequest::default();
+        dhcp_request.chaddr = mac_addr.try_into().unwrap();
+        // TODO: get_hostname()
+        // dhcp_request.sname =
+        for ele in options.into_iter() {
+            dhcp_request.options.push(ele.tp as u8);
+            dhcp_request.options.push(ele.len);
+            dhcp_request.options.extend(ele.va);
+        }
+        dhcp_request.options.push(0xff);
+        dhcp_request
+    }
+}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct DHCPDecline {}
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct DHCPAck {}
+#[derive(Debug, Clone)]
+pub struct DHCPAck {
+    pub op: DHCPOP,
+    pub htype: DHCPHType,
+    pub hlen: DHCPHLen,
+    pub hops: u8,
+    pub xid: u32,
+    pub secs: u16,
+    pub flags: u16,
+    pub ciaddr: [u8; 4],
+    pub yiaddr: [u8; 4],
+    pub siaddr: [u8; 4],
+    pub giaddr: [u8; 4],
+    pub chaddr: [u8; 16],
+    pub sname: [u8; 64],
+    pub file: [u8; 128],
+    pub options: Vec<DHCPOPTIONS>,
+}
+
+impl DHCPAck {
+    pub fn from_bytes<T: Buf>(buf: &mut T) -> Self {
+        let op: DHCPOP = buf.get_u8().into();
+        let htype: DHCPHType = buf.get_u8().into();
+        let hlen = buf.get_u8();
+        let hops = buf.get_u8();
+        let xid = buf.get_u32();
+        let secs = buf.get_u16();
+        let flags = buf.get_u16();
+        let mut ciaddr = [0u8; 4];
+        let mut yiaddr = [0u8; 4];
+        let mut siaddr = [0u8; 4];
+        let mut giaddr = [0u8; 4];
+        for i in 0..4 {
+            ciaddr[i] = buf.get_u8();
+        }
+        for i in 0..4 {
+            yiaddr[i] = buf.get_u8();
+        }
+        for i in 0..4 {
+            siaddr[i] = buf.get_u8();
+        }
+        for i in 0..4 {
+            giaddr[i] = buf.get_u8();
+        }
+        let mut chaddr = [0u8; 16];
+        for i in 0..16 {
+            chaddr[i] = buf.get_u8();
+        }
+        let mut sname = [0u8; 64];
+        for i in 0..64 {
+            sname[i] = buf.get_u8();
+        }
+        let mut file = [0u8; 128];
+        for i in 0..128 {
+            file[i] = buf.get_u8();
+        }
+        // magic cookie dhcp read as u32 - [63, 82, 53, 63]
+        let magic_cookie_dhcp = buf.get_u32();
+        if magic_cookie_dhcp != 1669485411u32 {
+            println!("Error: {}", magic_cookie_dhcp);
+            // panic
+        }
+        let mut options: Vec<DHCPOPTIONS> = Vec::new();
+        loop {
+            let tp = buf.get_u8();
+            if tp == DHCPOPTION::EndOption as u8 {
+                break;
+            }
+            let len = buf.get_u8();
+            let mut va = Vec::with_capacity(len as usize);
+            for i in 0..len as usize {
+                va.push(buf.get_u8());
+            }
+            options.push(DHCPOPTIONS {
+                tp: tp.into(),
+                len: len,
+                va: va,
+            })
+        }
+        DHCPAck {
+            op: op,
+            htype: htype,
+            hlen: hlen.into(),
+            hops: hops,
+            xid: xid,
+            secs: secs,
+            flags: flags,
+            ciaddr: ciaddr,
+            yiaddr: yiaddr,
+            siaddr: siaddr,
+            giaddr: giaddr,
+            chaddr: chaddr,
+            sname: sname,
+            file: file,
+            options: options,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct DHCPNak {}
@@ -469,5 +632,36 @@ impl DHCPBytes for DHCPDiscover {
             discover_bytes.put_u8(*ele);
         }
         discover_bytes
+    }
+}
+
+impl DHCPBytes for DHCPRequest {
+    fn to_bytes(&self) -> BytesMut {
+        let mut bytes = BytesMut::new();
+        bytes.put_u8(self.op as u8);
+        bytes.put_u8(self.htype as u8);
+        bytes.put_u8(self.hlen as u8);
+        bytes.put_u8(self.hops);
+        bytes.put_u32(self.xid);
+        bytes.put_u16(self.secs);
+        bytes.put_u16(self.flags);
+        for addrs in [self.ciaddr, self.yiaddr, self.siaddr, self.giaddr] {
+            for addr in addrs {
+                bytes.put_u8(addr);
+            }
+        }
+        for ele in self.chaddr.iter() {
+            bytes.put_u8(*ele);
+        }
+        for ele in self.sname.iter() {
+            bytes.put_u8(*ele);
+        }
+        for ele in self.file.iter() {
+            bytes.put_u8(*ele);
+        }
+        for ele in self.options.iter() {
+            bytes.put_u8(*ele);
+        }
+        bytes
     }
 }
